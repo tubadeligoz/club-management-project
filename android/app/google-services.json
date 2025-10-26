@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "324660483747",
+    "project_id": "club-management-project-43aa4",
+    "storage_bucket": "club-management-project-43aa4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:324660483747:android:d74f78867639228f995116",
+        "android_client_info": {
+          "package_name": "com.example.club_management_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0oRUhGqwxYfkV7tdwgI31OAuO3zqGqWA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
