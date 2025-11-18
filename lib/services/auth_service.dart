@@ -5,14 +5,13 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // GİRİŞ YAPMA METODU
-  // ========================================================================
+
   Future<String?> signIn(String email, String password) async {
     email = email.trim();
     final now = DateTime.now();
 
     try {
-      // Önce Firestore'daki kullanıcı kaydını kontrol et (email ile)
+
       final preQuery = await _db.collection('users').where('email', isEqualTo: email).limit(1).get();
       if (preQuery.docs.isNotEmpty) {
         final data = preQuery.docs.first.data();
@@ -32,7 +31,7 @@ class AuthService {
           if (lockTime.isAfter(now)) {
             return 'Hesabınız hatalı denemeler nedeniyle geçici olarak kilitlenmiştir. Lütfen daha sonra tekrar deneyin.';
           } else {
-            // Kilit süresi dolmuşsa temizle
+
             await preQuery.docs.first.reference.update({
               'is_locked': false,
               'failed_login_attempts': 0,
@@ -42,7 +41,7 @@ class AuthService {
         }
       }
 
-      // Firebase Auth ile giriş denemesi
+
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -59,7 +58,7 @@ class AuthService {
         return 'Hesabınız aktif değil. Lütfen e-posta adresinize gönderilen doğrulama linkine tıklayın.';
       }
 
-      // UID ile user dokümanını kontrol et ve deneme sayacını sıfırla
+
       final userDocRef = _db.collection('users').doc(user.uid);
       final userDoc = await userDocRef.get();
       if (userDoc.exists) {
@@ -92,9 +91,9 @@ class AuthService {
         }
       }
 
-      return null; // Başarılı
+      return null; 
     } on FirebaseAuthException catch (e) {
-      // Hata mesajını belirle (return etmeden önce deneme sayısını artıracağız)
+
       String errorMessage = 'Bir hata oluştu. Lütfen tekrar deneyin.';
       if (e.code == 'user-not-found') {
         errorMessage = 'Bu e-posta adresine kayıtlı kullanıcı bulunamadı.';
@@ -104,7 +103,7 @@ class AuthService {
         errorMessage = 'Girdiğiniz e-posta adresi geçerli değil.';
       }
 
-      // Hatalı giriş denemelerini sayma ve gerektiğinde kilitleme
+
       try {
         final userQuery = await _db.collection('users').where('email', isEqualTo: email).limit(1).get();
         if (userQuery.docs.isNotEmpty) {
@@ -112,8 +111,9 @@ class AuthService {
           final data = doc.data();
           int attempts = 0;
           final raw = data['failed_login_attempts'];
-          if (raw is int) attempts = raw;
-          else if (raw is String) attempts = int.tryParse(raw) ?? 0;
+          if (raw is int) {
+            attempts = raw;
+          } else if (raw is String) attempts = int.tryParse(raw) ?? 0;
 
           if (attempts >= 2) {
             await doc.reference.update({
@@ -127,7 +127,7 @@ class AuthService {
           }
         }
       } catch (_) {
-        // Firestore güncellemesi başarısız olursa sessizce geç
+
       }
 
       return errorMessage;
@@ -136,8 +136,7 @@ class AuthService {
     }
   }
 
-  // KAYIT OLMA METODU
-  // ========================================================================
+
   Future<String?> register(String email, String password, String ad, String soyad) async {
     try {
       final userCredential = await _auth.createUserWithEmailAndPassword(
@@ -172,11 +171,11 @@ class AuthService {
     }
   }
 
-  // ÇIKIŞ YAPMA METODU
+
   Future<void> signOut() async {
     await _auth.signOut();
   }
 
-  // MEVCUT KULLANICI
+
   User? getCurrentUser() => _auth.currentUser;
 }
