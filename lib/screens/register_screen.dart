@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -10,165 +11,94 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _adController = TextEditingController();
-  final TextEditingController _soyadController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  final List<String> _allInterests = ["Yazılım", "Bilim", "Yapay Zeka", "Sanat", "Endüstri", "Doğa", "Futbol"];
+  final List<String> _selectedInterests = [];
   bool _isLoading = false;
 
-  @override
-  void dispose() {
-    _adController.dispose();
-    _soyadController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
+  // Kontroller
+  bool _isEmailValid(String email) => email.endsWith('@dogus.edu.tr') || email.endsWith('@st.dogus.edu.tr');
+
+  String? _validatePassword(String password) {
+    if (password.length < 6) return "En az 6 karakter.";
+    if (!password.contains(RegExp(r'[A-Z]'))) return "Büyük harf gerekli.";
+    if (!password.contains(RegExp(r'[0-9]'))) return "Rakam gerekli.";
+    return null;
   }
 
-  Future<void> _handleRegister() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      final authService = AuthService();
-      String? errorMessage = await authService.register(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-        _adController.text.trim(),
-        _soyadController.text.trim(),
+  Future<void> _register() async {
+    if (!_isEmailValid(_emailController.text.trim())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sadece okul maili!")));
+      return;
+    }
+    String? passError = _validatePassword(_passwordController.text.trim());
+    if (passError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(passError)));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      UserCredential cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
 
-      setState(() => _isLoading = false);
-
-      if (errorMessage == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kayıt başarılı! Lütfen e-posta adresinizi kontrol edin ve hesabınızı doğrulayın.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context); 
+      if (cred.user != null) {
+        await cred.user!.sendEmailVerification();
         
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.red,
-          ),
-        );
+        // FİRESTORE KAYDI (VARSAYILAN ROL: OGRENCİ)
+        await FirebaseFirestore.instance.collection('users').doc(cred.user!.uid).set({
+          'name': _nameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'interests': _selectedInterests,
+          'createdAt': FieldValue.serverTimestamp(),
+          'isVerified': false,
+          'role': 'ogrenci',
+        });
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (c) => AlertDialog(
+              title: const Text("Doğrulama Maili Gönderildi"),
+              actions: [TextButton(onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())), child: const Text("Giriş Yap"))],
+            )
+          );
+        }
       }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Hata: $e")));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kayıt Ol'),
-      ),
+      appBar: AppBar(title: const Text("Kayıt Ol")),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              
-              TextFormField(
-                controller: _adController,
-                decoration: const InputDecoration(labelText: 'Ad'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Ad alanı boş bırakılamaz.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 15),
-
-              
-              TextFormField(
-                controller: _soyadController,
-                decoration: const InputDecoration(labelText: 'Soyad'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Soyad alanı boş bırakılamaz.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 15),
-
-              
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Okul E-postası'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'E-posta alanı boş bırakılamaz.';
-                  }
-                  
-                  if (!value.contains('@') || (!value.endsWith('dogus.edu.tr'))) {
-                    return 'Geçersiz e-posta. Sadece okul e-postası (dogus.edu.tr) kabul edilir.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 30),
-
-              
-              TextFormField(
-                controller: _passwordController,
-                obscureText: true, 
-                decoration: const InputDecoration(labelText: 'Şifre'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Şifre alanı boş bırakılamaz.';
-                  }
-                  if (value.length < 6) {
-                    return 'Şifre en az 6 karakter olmalıdır.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 15),
-
-              
-              TextFormField(
-                controller: _confirmPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Şifre Tekrarı'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Şifre tekrarı boş bırakılamaz.';
-                  }
-                  if (value != _passwordController.text) {
-                    return 'Şifreler eşleşmiyor.'; 
-                  }
-                  return null;
-                },
-              ),
-              
-              const SizedBox(height: 30),
-              
-              
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleRegister,
-                child: _isLoading 
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Kaydol'),
-              ),
-              
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context); 
-                },
-                child: const Text('Zaten hesabınız var mı? Giriş yapın.'),
-              ),
-            ],
-          ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(controller: _nameController, decoration: const InputDecoration(labelText: "Ad Soyad", border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: _emailController, decoration: const InputDecoration(labelText: "Okul Maili", border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: _passwordController, obscureText: true, decoration: const InputDecoration(labelText: "Şifre", border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 5,
+              children: _allInterests.map((i) => FilterChip(label: Text(i), selected: _selectedInterests.contains(i), onSelected: (s) => setState(() => s ? _selectedInterests.add(i) : _selectedInterests.remove(i)))).toList()
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(onPressed: _isLoading ? null : _register, child: _isLoading ? const CircularProgressIndicator() : const Text("Kayıt Ol"))
+          ],
         ),
       ),
     );
