@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               // 1. Image.asset yapısı ve height özelliği doğru şekilde birleştirildi.
               Image.asset(
-                'assets/images/DogusLogo.png', 
+                'assets/images/Dogus.logo.png', 
                 height: 150,
               ),
               const SizedBox(height: 40), // Logonun altındaki boşluğu artırdık
