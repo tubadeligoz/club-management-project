@@ -5,13 +5,15 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  static const int _maxFailedAttempts = 3;
+  static final Duration _lockDuration = const Duration(minutes: 30);
 
   Future<String?> signIn(String email, String password) async {
     email = email.trim();
     final now = DateTime.now();
 
     try {
-
+      // Önce email ile kayıtlı kullanıcı varsa kilit durumunu kontrol et
       final preQuery = await _db.collection('users').where('email', isEqualTo: email).limit(1).get();
       if (preQuery.docs.isNotEmpty) {
         final data = preQuery.docs.first.data();
@@ -29,9 +31,10 @@ class AuthService {
           }
 
           if (lockTime.isAfter(now)) {
-            return 'Hesabınız hatalı denemeler nedeniyle geçici olarak kilitlenmiştir. Lütfen daha sonra tekrar deneyin.';
+            final minutesLeft = lockTime.difference(now).inMinutes;
+            return 'Hesabınız hatalı denemeler nedeniyle $minutesLeft dakika daha kilitli. Lütfen daha sonra tekrar deneyin.';
           } else {
-
+            // Kilit süresi dolmuşsa temizle
             await preQuery.docs.first.reference.update({
               'is_locked': false,
               'failed_login_attempts': 0,
@@ -41,7 +44,7 @@ class AuthService {
         }
       }
 
-
+      // Firebase Auth ile giriş denemesi
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -58,7 +61,7 @@ class AuthService {
         return 'Hesabınız aktif değil. Lütfen e-posta adresinize gönderilen doğrulama linkine tıklayın.';
       }
 
-
+      // UID ile user dokümanını kontrol et ve deneme sayacını sıfırla
       final userDocRef = _db.collection('users').doc(user.uid);
       final userDoc = await userDocRef.get();
       if (userDoc.exists) {
@@ -77,8 +80,9 @@ class AuthService {
           }
 
           if (lockTime.isAfter(now)) {
+            final minutesLeft = lockTime.difference(now).inMinutes;
             await _auth.signOut();
-            return 'Hesabınız hatalı denemeler nedeniyle geçici olarak kilitlenmiştir. Lütfen daha sonra tekrar deneyin.';
+            return 'Hesabınız hatalı denemeler nedeniyle $minutesLeft dakika daha kilitli. Lütfen daha sonra tekrar deneyin.';
           } else {
             await userDocRef.update({
               'is_locked': false,
@@ -87,13 +91,17 @@ class AuthService {
             });
           }
         } else {
-          await userDocRef.update({'failed_login_attempts': 0, 'is_locked': false});
+          // Başarılı girişte sayaçları temizle
+          await userDocRef.update({
+            'failed_login_attempts': 0,
+            'is_locked': false,
+            'locked_until': FieldValue.delete(),
+          });
         }
       }
 
-      return null; 
+      return null; // Başarılı
     } on FirebaseAuthException catch (e) {
-
       String errorMessage = 'Bir hata oluştu. Lütfen tekrar deneyin.';
       if (e.code == 'user-not-found') {
         errorMessage = 'Bu e-posta adresine kayıtlı kullanıcı bulunamadı.';
@@ -103,7 +111,7 @@ class AuthService {
         errorMessage = 'Girdiğiniz e-posta adresi geçerli değil.';
       }
 
-
+      // Hatalı giriş denemelerini sayma ve gerektiğinde kilitleme
       try {
         final userQuery = await _db.collection('users').where('email', isEqualTo: email).limit(1).get();
         if (userQuery.docs.isNotEmpty) {
@@ -113,21 +121,26 @@ class AuthService {
           final raw = data['failed_login_attempts'];
           if (raw is int) {
             attempts = raw;
-          } else if (raw is String) attempts = int.tryParse(raw) ?? 0;
+          } else if (raw is String) {
+            attempts = int.tryParse(raw) ?? 0;
+          }
 
-          if (attempts >= 2) {
+          final newAttempts = attempts + 1;
+
+          if (newAttempts >= _maxFailedAttempts) {
+            final lockedUntilTs = Timestamp.fromDate(now.add(_lockDuration));
             await doc.reference.update({
-              'failed_login_attempts': attempts + 1,
+              'failed_login_attempts': newAttempts,
               'is_locked': true,
-              'locked_until': Timestamp.fromDate(now.add(const Duration(minutes: 30))),
+              'locked_until': lockedUntilTs,
             });
-            return 'Hesabınız 3 hatalı deneme nedeniyle 30 dakika süreyle kilitlenmiştir.';
+            return 'Hesabınız $_maxFailedAttempts hatalı deneme nedeniyle ${_lockDuration.inMinutes} dakika süreyle kilitlenmiştir.';
           } else {
-            await doc.reference.update({'failed_login_attempts': attempts + 1});
+            await doc.reference.update({'failed_login_attempts': newAttempts});
           }
         }
       } catch (_) {
-
+        // Firestore güncellemesi başarısız olursa sessizce geç
       }
 
       return errorMessage;
@@ -135,7 +148,6 @@ class AuthService {
       return 'Beklenmeyen bir hata oluştu: ${e.toString()}';
     }
   }
-
 
   Future<String?> register(String email, String password, String ad, String soyad) async {
     try {
@@ -171,11 +183,9 @@ class AuthService {
     }
   }
 
-
   Future<void> signOut() async {
     await _auth.signOut();
   }
-
 
   User? getCurrentUser() => _auth.currentUser;
 }
