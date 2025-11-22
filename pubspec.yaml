@@ -16,7 +16,7 @@ dependencies:
   firebase_auth: ^6.1.1      # Kullanıcı kayıt ve login için
   cloud_firestore: ^6.0.3     # Kulüp bilgileri ve veritabanı işlemleri
   provider: ^6.0.6            # State management
-
+  google_generative_ai: ^0.4.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
