@@ -71,9 +71,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 width: screenWidth * 0.7, 
                 fit: BoxFit.contain,
                 
-                // --- İŞTE SİHİRLİ KISIM BURASI ---
-                // Bu iki satır, resmin beyaz arka planını
-                // uygulamanın beyaz arka planına "yedirir".
+               
                 color: Colors.white,
                 colorBlendMode: BlendMode.multiply,
                 // ----------------------------------
