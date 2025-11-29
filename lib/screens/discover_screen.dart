@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart'; 
+import 'package:qr_flutter/qr_flutter.dart';
 
 // Sayfalar ve Widgetlar
 import 'clubs_screen.dart'; 
@@ -93,27 +94,66 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
+  // --- QR DİYALOG ---
+  void _showQrDialog() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Dijital Kimliğin", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+            const SizedBox(height: 5),
+            const Text("Etkinlik girişlerinde okut.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade200, width: 2),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: QrImageView(
+                data: user.uid, 
+                version: QrVersions.auto,
+                size: 200.0,
+                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Color(0xFFD32F2F)),
+                dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Color(0xFFD32F2F)),
+              ),
+            ),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("Kapat", style: TextStyle(color: Colors.black)))],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50], 
       
-      // --- BÜYÜK LOGOLU APPBAR ---
       appBar: AppBar(
-        toolbarHeight: 80, // Tavanı yükselttik
+        toolbarHeight: 80,
         centerTitle: false,
         titleSpacing: 20,
         automaticallyImplyLeading: false,
-        
-        // BÜYÜK LOGO
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        elevation: 0,
         title: Image.asset(
           'assets/icon-removebg-preview.png', 
-          height: 70, // Boyutu büyüttük
+          height: 70,
           fit: BoxFit.contain,
           alignment: Alignment.centerLeft,
-         
+          errorBuilder: (c,e,s) => const Icon(Icons.school, size: 40, color: Colors.red),
         ),
-        
         actions: [
           const NotificationButton(),
           Padding(
@@ -127,7 +167,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ),
       
       body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.only(bottom: 80), 
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -145,10 +185,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ),
               items: _sliderData.map((data) {
                 bool hasImage = data['bgImage'] != null;
-
                 return Builder(
                   builder: (BuildContext context) {
                     return GestureDetector(
+                      // --- HATA DÜZELTİLDİ: SÜSLÜ PARANTEZLER EKLENDİ ---
                       onTap: () {
                         if (data['action'] == 'spotify') {
                           _launchSpotify();
@@ -158,28 +198,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${data['title']} detayları yakında!")));
                         }
                       },
+                      // -------------------------------------------------
                       child: Container(
                         width: MediaQuery.of(context).size.width,
                         margin: const EdgeInsets.symmetric(horizontal: 5.0),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))],
-                          
-                          // Arka Plan Resmi veya Gradyan
                           image: hasImage 
-                            ? DecorationImage(
-                                image: NetworkImage(data['bgImage']),
-                                fit: BoxFit.cover,
-                                colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.3), BlendMode.darken)
-                              )
+                            ? DecorationImage(image: NetworkImage(data['bgImage']), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.3), BlendMode.darken))
                             : null,
-                          gradient: hasImage 
-                            ? null 
-                            : LinearGradient(
-                                colors: data['colors'],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
+                          gradient: hasImage ? null : LinearGradient(colors: data['colors'], begin: Alignment.topLeft, end: Alignment.bottomRight),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(15.0),
@@ -190,35 +219,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Text(
-                                      data['title'], 
-                                      style: const TextStyle(
-                                        color: Colors.white, 
-                                        fontSize: 22, 
-                                        fontWeight: FontWeight.w900,
-                                        shadows: [Shadow(blurRadius: 10, color: Colors.black)]
-                                      )
-                                    ),
+                                    Text(data['title'], style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, shadows: [Shadow(blurRadius: 10, color: Colors.black)])),
                                     const SizedBox(height: 8),
-                                    Text(
-                                      data['subtitle'], 
-                                      style: const TextStyle(
-                                        color: Colors.white, 
-                                        fontSize: 14, 
-                                        fontWeight: FontWeight.bold,
-                                        shadows: [Shadow(blurRadius: 5, color: Colors.black)]
-                                      ), 
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis
-                                    ),
+                                    Text(data['subtitle'], style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, shadows: [Shadow(blurRadius: 5, color: Colors.black)]), maxLines: 2, overflow: TextOverflow.ellipsis),
                                   ],
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                                child: Icon(data['icon'], color: Colors.white, size: 40)
-                              ),
+                              Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle), child: Icon(data['icon'], color: Colors.white, size: 40)),
                             ],
                           ),
                         ),
@@ -274,6 +281,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
           ],
         ),
+      ),
+      
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showQrDialog,
+        label: const Text("QR Kimlik", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        icon: const Icon(Icons.qr_code_2, color: Colors.white),
+        backgroundColor: const Color(0xFFD32F2F), 
       ),
     );
   }
@@ -332,35 +346,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          padding: const EdgeInsets.all(20),
-          height: 500,
-          child: Column(children: [
-            const Icon(Icons.psychology, size: 50, color: Colors.teal),
-            const Text("Kampüs Asistanı", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-            const Divider(),
-            Expanded(child: SingleChildScrollView(child: Text(aiResponse.isEmpty ? "Senin ilgi alanlarına göre en iyi kulüpleri analiz etmemi ister misin? 👇" : aiResponse))),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, padding: const EdgeInsets.all(15)),
-              onPressed: isAiLoading ? null : () async {
-                setModalState(() => isAiLoading = true);
-                try {
-                  User? user = FirebaseAuth.instance.currentUser;
-                  if (user != null) {
-                    AiService ai = AiService();
-                    String response = await ai.getClubRecommendation(user.uid);
-                    setModalState(() { aiResponse = response; isAiLoading = false; });
-                  }
-                } catch (e) { setModalState(() { aiResponse = "Hata: $e"; isAiLoading = false; }); }
-              }, 
-              icon: isAiLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) : const Icon(Icons.auto_awesome, color: Colors.white),
-              label: Text(isAiLoading ? "Analiz Ediliyor..." : "Bana Öneri Yap", style: const TextStyle(color: Colors.white))
-            )
-          ]),
-        )
-      ),
-    );
+      builder: (context) => StatefulBuilder(builder: (context, setModalState) => Container(padding: const EdgeInsets.all(20), height: 500, child: Column(children: [const Icon(Icons.psychology, size: 50, color: Colors.teal), const Text("Kampüs Asistanı", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)), const Divider(), Expanded(child: SingleChildScrollView(child: Text(aiResponse.isEmpty ? "Senin ilgi alanlarına göre en iyi kulüpleri analiz etmemi ister misin? 👇" : aiResponse))), const SizedBox(height: 20), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, padding: const EdgeInsets.all(15)), onPressed: isAiLoading ? null : () async { setModalState(() => isAiLoading = true); try { User? user = FirebaseAuth.instance.currentUser; if (user != null) { AiService ai = AiService(); String response = await ai.getClubRecommendation(user.uid); setModalState(() { aiResponse = response; isAiLoading = false; }); } } catch (e) { setModalState(() { aiResponse = "Hata: $e"; isAiLoading = false; }); } }, icon: isAiLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) : const Icon(Icons.auto_awesome, color: Colors.white), label: Text(isAiLoading ? "Analiz Ediliyor..." : "Bana Öneri Yap", style: const TextStyle(color: Colors.white)))]))));
   }
 }
