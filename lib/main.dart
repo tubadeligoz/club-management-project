@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'screens/login_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-// DİKKAT: Artık HomeScreen'i değil, MainScaffold'ı çağırıyoruz
-import 'screens/main_scaffold.dart'; 
+// SAYFALAR
+import 'screens/splash_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/main_scaffold.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,11 +23,81 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Doğuş Kulüp AI',
+      
+      // --- MODERN KIRMIZI-BEYAZ TEMA ---
       theme: ThemeData(
-        primarySwatch: Colors.indigo,
         useMaterial3: true,
+        
+        // RENK PALETİ
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFD32F2F), // Doğuş Kırmızısı
+          primary: const Color(0xFFD32F2F),   
+          secondary: const Color(0xFFB71C1C), 
+          surface: Colors.white,              
+          onPrimary: Colors.white,            
+        ),
+
+        // YAZI TİPİ
+        textTheme: GoogleFonts.poppinsTextTheme(),
+
+        // APP BAR
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFFD32F2F), 
+          elevation: 0,
+          centerTitle: true,
+          iconTheme: IconThemeData(color: Color(0xFFD32F2F)),
+          titleTextStyle: TextStyle(
+            color: Color(0xFFD32F2F),
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        // ALT MENÜ (DÜZELTİLEN KISIM BURASI)
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: Colors.red.shade100,
+          
+          // ESKİSİ: MaterialStateProperty.all(...)
+          // YENİSİ: WidgetStateProperty.all(...)
+          iconTheme: WidgetStateProperty.all(const IconThemeData(color: Color(0xFFD32F2F))),
+          labelTextStyle: WidgetStateProperty.all(
+            const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFD32F2F))
+          ),
+        ),
+
+        // BUTON
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFD32F2F),
+            foregroundColor: Colors.white,            
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+          ),
+        ),
+        
+        // INPUT KUTULARI
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 2),
+          ),
+          prefixIconColor: Colors.grey,
+        ),
       ),
-      home: const AuthWrapper(), 
+
+      home: const SplashScreen(), 
     );
   }
 }
@@ -39,19 +111,14 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // 1. Bağlantı Bekleniyor
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
-        // 2. Kullanıcı Giriş Yapmışsa
         if (snapshot.hasData) {
           User? user = snapshot.data;
 
-          // Mail onaylı mı?
           if (user != null && user.emailVerified) {
-            
-            // --- ROL SORGULAMA ---
             return FutureBuilder<DocumentSnapshot>(
               future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
               builder: (context, roleSnapshot) {
@@ -60,33 +127,21 @@ class AuthWrapper extends StatelessWidget {
                   return const Scaffold(body: Center(child: CircularProgressIndicator()));
                 }
 
-                String role = 'ogrenci'; // Varsayılan rol
+                String role = 'ogrenci'; 
 
                 if (roleSnapshot.hasData && roleSnapshot.data!.exists) {
                   Map<String, dynamic> data = roleSnapshot.data!.data() as Map<String, dynamic>;
                   role = data['role'] ?? 'ogrenci';
-                  
-                  debugPrint("---------------------------------------");
-                  debugPrint("GİRİŞ YAPAN: ${user.email}");
-                  debugPrint("ROLÜ: $role");
-                  debugPrint("---------------------------------------");
+                  debugPrint("GİRİŞ YAPAN: ${user.email} | ROLÜ: $role");
                 }
 
-                // --- İŞTE BURAYI DEĞİŞTİRDİK ---
-                // Eskisi: return HomeScreen(userRole: role);
-                // Yenisi: MainScaffold (Alt Menülü Çatı)
                 return MainScaffold(userRole: role);
-                // -------------------------------
               },
             );
-
           } else {
-            // Mail onaysızsa Login
             return const LoginScreen();
           }
         }
-
-        // 3. Kimse yoksa Login
         return const LoginScreen();
       },
     );
