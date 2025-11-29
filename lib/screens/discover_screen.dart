@@ -33,14 +33,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       'bgImage': null, 
     },
     {
-      // --- YENİ YILBAŞI KARTI ---
       'title': "Yılbaşı Partisi! 🎄",
       'subtitle': "Kardan adam, sıcak çikolata ve müzik!",
-      // Yüklenmezse görünecek renkler: Kırmızı ve Çam Yeşili
       'colors': [const Color(0xFFD32F2F), const Color(0xFF1B5E20)], 
-      'icon': Icons.ac_unit, // Kar tanesi ikonu
+      'icon': Icons.ac_unit, 
       'action': 'info',
-      // Daha güvenilir bir kardan adam görseli
       'bgImage': 'https://images.unsplash.com/photo-1519068737630-e5db1b91bf4c?q=80&w=1000&auto=format&fit=crop',
     },
     {
@@ -61,6 +58,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     },
   ];
 
+  // --- FONKSİYONLAR ---
   Future<void> _launchSpotify() async {
     final Uri url = Uri.parse("https://open.spotify.com/playlist/37i9dQZF1DX1HubL9D8Y0W"); 
     try {
@@ -99,24 +97,31 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50], 
+      
+      // --- BÜYÜK LOGOLU APPBAR ---
       appBar: AppBar(
-        titleSpacing: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Image.asset('assets/images/appbar_logo.png', errorBuilder: (c,e,s)=>const Icon(Icons.school, color: Colors.red)),
+        toolbarHeight: 80, // Tavanı yükselttik
+        centerTitle: false,
+        titleSpacing: 20,
+        automaticallyImplyLeading: false,
+        
+        // BÜYÜK LOGO
+        title: Image.asset(
+          'assets/icon-removebg-preview.png', 
+          height: 70, // Boyutu büyüttük
+          fit: BoxFit.contain,
+          alignment: Alignment.centerLeft,
+         
         ),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("DOĞUŞ KULÜP", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-            Text("Kampüsü Keşfet", style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Colors.grey)),
-          ],
-        ),
+        
         actions: [
           const NotificationButton(),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.grey), 
-            onPressed: () async => await FirebaseAuth.instance.signOut()
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: IconButton(
+              icon: const Icon(Icons.logout, color: Colors.grey, size: 28), 
+              onPressed: () async => await FirebaseAuth.instance.signOut()
+            ),
           )
         ],
       ),
@@ -128,7 +133,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           children: [
             const SizedBox(height: 15),
             
-            // --- SLAYT ALANI ---
+            // 1. SLAYT ALANI
             CarouselSlider(
               options: CarouselOptions(
                 height: 180.0,
@@ -139,6 +144,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 viewportFraction: 0.85,
               ),
               items: _sliderData.map((data) {
+                bool hasImage = data['bgImage'] != null;
+
                 return Builder(
                   builder: (BuildContext context) {
                     return GestureDetector(
@@ -154,87 +161,66 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       child: Container(
                         width: MediaQuery.of(context).size.width,
                         margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                        // 1. KATMAN: KARTIN ŞEKLİ VE GRADYAN RENGİ (ZEMİN)
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))],
-                          gradient: LinearGradient(
-                            colors: data['colors'], // Kırmızı ve Yeşil burada
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                          
+                          // Arka Plan Resmi veya Gradyan
+                          image: hasImage 
+                            ? DecorationImage(
+                                image: NetworkImage(data['bgImage']),
+                                fit: BoxFit.cover,
+                                colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.3), BlendMode.darken)
+                              )
+                            : null,
+                          gradient: hasImage 
+                            ? null 
+                            : LinearGradient(
+                                colors: data['colors'],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                         ),
-                        // 2. KATMAN: RESİM VE YAZILAR (STACK)
-                        child: Stack(
-                          children: [
-                            // A. RESİM (Varsa arkaya döşe)
-                            if (data['bgImage'] != null)
-                              Positioned.fill(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Image.network(
-                                    data['bgImage'],
-                                    fit: BoxFit.cover,
-                                    // Resim yüklenemezse boş dön (Böylece alttaki Gradyan görünür, Gri değil!)
-                                    errorBuilder: (c, e, s) => const SizedBox(),
-                                  ),
-                                ),
-                              ),
-                            
-                            // B. KARARTMA PERDESİ (Yazı okunsun diye)
-                            if (data['bgImage'] != null)
-                              Positioned.fill(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    color: Colors.black.withValues(alpha: 0.4), // %40 Karartma
-                                  ),
-                                ),
-                              ),
-
-                            // C. YAZILAR VE İKON (En Üstte)
-                            Padding(
-                              padding: const EdgeInsets.all(15.0),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          data['title'], 
-                                          style: const TextStyle(
-                                            color: Colors.white, 
-                                            fontSize: 22, 
-                                            fontWeight: FontWeight.w900,
-                                            shadows: [Shadow(blurRadius: 10, color: Colors.black)]
-                                          )
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          data['subtitle'], 
-                                          style: const TextStyle(
-                                            color: Colors.white, 
-                                            fontSize: 14, 
-                                            fontWeight: FontWeight.bold,
-                                            shadows: [Shadow(blurRadius: 5, color: Colors.black)]
-                                          ), 
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis
-                                        ),
-                                      ],
+                        child: Padding(
+                          padding: const EdgeInsets.all(15.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      data['title'], 
+                                      style: const TextStyle(
+                                        color: Colors.white, 
+                                        fontSize: 22, 
+                                        fontWeight: FontWeight.w900,
+                                        shadows: [Shadow(blurRadius: 10, color: Colors.black)]
+                                      )
                                     ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                                    child: Icon(data['icon'], color: Colors.white, size: 40)
-                                  ),
-                                ],
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      data['subtitle'], 
+                                      style: const TextStyle(
+                                        color: Colors.white, 
+                                        fontSize: 14, 
+                                        fontWeight: FontWeight.bold,
+                                        shadows: [Shadow(blurRadius: 5, color: Colors.black)]
+                                      ), 
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+                                child: Icon(data['icon'], color: Colors.white, size: 40)
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
