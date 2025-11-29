@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'register_screen.dart';
 
-
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,7 +17,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     setState(() => _isLoading = true);
     try {
-      UserCredential cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      UserCredential cred = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
@@ -26,14 +26,20 @@ class _LoginScreenState extends State<LoginScreen> {
       if (cred.user != null) {
         if (!cred.user!.emailVerified) {
           await FirebaseAuth.instance.signOut();
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lütfen mailini doğrula!")));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Lütfen mailini doğrula!")),
+            );
+          }
           return;
         }
-        // Başarılı giriş (main.dart'taki AuthWrapper otomatik algılar ama biz garanti olsun diye bir yenileme yapabiliriz veya bekleyebiliriz)
-        // Burada bir şey yapmasan da AuthWrapper stream'i yakalar.
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Giriş Başarısız. Bilgileri kontrol et.")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Giriş Başarısız. Bilgileri kontrol et.")),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -42,26 +48,113 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.lock, size: 80, color: Colors.indigo),
+              // LOGO + Başlık
+              const Icon(Icons.lock_outline,
+                  size: 80, color: Colors.redAccent),
               const SizedBox(height: 20),
-              TextField(controller: _emailController, decoration: const InputDecoration(labelText: "E-posta", border: OutlineInputBorder())),
-              const SizedBox(height: 10),
-              TextField(controller: _passwordController, obscureText: true, decoration: const InputDecoration(labelText: "Şifre", border: OutlineInputBorder())),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _login, 
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50), backgroundColor: Colors.indigo),
-                child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Giriş Yap", style: TextStyle(color: Colors.white))
+              const Text(
+                "Hoş Geldin",
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
-              TextButton(
-                onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
-                child: const Text("Kayıt Ol"),
+              const SizedBox(height: 8),
+              Text(
+                "Hesabına giriş yap ve devam et",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 40),
+
+              // E-mail field
+              TextField(
+                controller: _emailController,
+                decoration: InputDecoration(
+                  labelText: "E-posta",
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Password field
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: "Şifre",
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // Button
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _login,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          "Giriş Yap",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Alt link
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text("Hesabın yok mu? "),
+                  GestureDetector(
+                    onTap: () => Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                    ),
+                    child: const Text(
+                      "Kayıt Ol",
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               )
             ],
           ),
