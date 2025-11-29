@@ -22,7 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _deptController = TextEditingController(); 
   
   bool _isEditing = false; 
-  bool _isLoading = false; // ARTIK BUNU KULLANIYORUZ ✅
+  bool _isLoading = false;
   File? _selectedImage;
 
   @override
@@ -59,7 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       String? imageUrl;
 
       if (_selectedImage != null) {
-        const String apiKey = "d1b71818d40c297e1f6f0dd345dba93b"; // <--- API KEY'İNİ UNUTMA
+        const String apiKey = "d1b71818d40c297e1f6f0dd345dba93b"; // Key
         final Uri url = Uri.parse("https://api.imgbb.com/1/upload?key=$apiKey");
         var request = http.MultipartRequest("POST", url);
         request.files.add(await http.MultipartFile.fromPath('image', _selectedImage!.path));
@@ -106,12 +106,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: true,
         automaticallyImplyLeading: false,
         actions: [
-          // --- DÜZELTİLEN KISIM ---
+          // YÜKLENİYOR MU?
           if (_isLoading)
             const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
           else
+            // DÜZENLEME BUTONLARI (Edit / Save)
             IconButton(
-              icon: Icon(_isEditing ? Icons.check : Icons.edit),
+              icon: Icon(_isEditing ? Icons.check : Icons.edit, color: Colors.indigo),
               onPressed: () {
                 if (_isEditing) {
                   _saveProfile();
@@ -119,8 +120,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   setState(() => _isEditing = true);
                 }
               },
-            )
-          // ------------------------
+            ),
+          
+          // --- ÇIKIŞ YAP BUTONU (BURAYA TAŞINDI) ---
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red),
+            onPressed: () async => await FirebaseAuth.instance.signOut(),
+          ),
+          // -----------------------------------------
         ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
@@ -188,22 +195,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 15),
                 _buildTextField("Hakkımda", _bioController, Icons.person, maxLines: 3),
                 
-                const SizedBox(height: 30),
-
-                if (!_isEditing)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade50,
-                        foregroundColor: Colors.red,
-                        padding: const EdgeInsets.all(15)
-                      ),
-                      onPressed: () => FirebaseAuth.instance.signOut(),
-                      icon: const Icon(Icons.logout),
-                      label: const Text("Güvenli Çıkış"),
-                    ),
-                  )
+                // ESKİ ÇIKIŞ BUTONU BURADAN SİLİNDİ
               ],
             ),
           );
