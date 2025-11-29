@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'election_screen.dart'; 
+import '../services/notification_service.dart'; // Bildirim servisini import et (Eğer yoksa bu satırı sil)
+import 'election_screen.dart'; // Seçim ekranını import et
 
 class ClubDetailScreen extends StatefulWidget {
   final String clubId;
@@ -46,6 +47,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
 
     try {
       if (isMember) {
+        // Ayrılma
         await clubRef.update({
           'members': FieldValue.arrayRemove([myUid])
         });
@@ -55,6 +57,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
         });
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kulüpten ayrıldın.")));
       } else {
+        // Katılma
         await clubRef.update({
           'members': FieldValue.arrayUnion([myUid])
         });
@@ -62,6 +65,17 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
           isMember = true;
           memberCount++;
         });
+
+        // Bildirim Gönderme (Servis varsa çalışır, yoksa hata vermesin diye try-catch içinde)
+        try {
+          NotificationService.sendNotificationToSelf(
+            title: "Aramıza Hoşgeldin! 🎉",
+            body: "${widget.clubData['name']} kulübüne üyeliğin başarıyla gerçekleşti.",
+          );
+        } catch (e) {
+          debugPrint("Bildirim gönderilemedi (Servis eksik olabilir): $e");
+        }
+
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tebrikler! Kulübe katıldın. 🎉")));
       }
     } catch (e) {
@@ -91,7 +105,6 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
                 background: Image.network(
                   widget.clubData['image'] ?? "https://picsum.photos/500/300",
                   fit: BoxFit.cover,
-                  // YENİ FLUTTER SÜRÜMÜ UYUMLU:
                   color: Colors.black.withValues(alpha: 0.3),
                   colorBlendMode: BlendMode.darken,
                   errorBuilder: (c, e, s) => Container(color: Colors.grey),
@@ -126,7 +139,6 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
 
                     const SizedBox(height: 15),
 
-                    // SEÇİM BUTONU
                     StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance
                           .collection('elections')
@@ -169,6 +181,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
                       controller: _tabController,
                       labelColor: Colors.indigo,
                       unselectedLabelColor: Colors.grey,
+                      indicatorColor: Colors.indigo,
                       tabs: const [
                         Tab(text: "Etkinlikler"),
                         Tab(text: "Hakkında"),
@@ -180,19 +193,16 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
             ),
           ];
         },
-        // --- GÖVDE KISMI ---
         body: TabBarView(
           controller: _tabController,
           children: [
-            _buildEventsTab(), // 1. Fonksiyonu çağırıyoruz
-            _buildAboutTab(),  // 2. Fonksiyonu çağırıyoruz (HATA BURADAYDI)
+            _buildEventsTab(),
+            _buildAboutTab(),
           ],
         ),
       ),
     );
   }
-
-  // --- İŞTE EKSİK OLAN ALT KISIMLAR BURADA ---
 
   Widget _buildEventsTab() {
     return StreamBuilder<QuerySnapshot>(
@@ -205,7 +215,16 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
           return const Center(child: CircularProgressIndicator());
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text("Henüz etkinlik paylaşılmamış."));
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.event_busy, size: 50, color: Colors.grey),
+                SizedBox(height: 10),
+                Text("Henüz etkinlik paylaşılmamış."),
+              ],
+            ),
+          );
         }
 
         return ListView.builder(
@@ -216,8 +235,8 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: ListTile(
-                leading: const Icon(Icons.event, color: Colors.indigo),
-                title: Text(post['description'] ?? ""),
+                leading: const Icon(Icons.event, color: Colors.indigo, size: 30),
+                title: Text(post['description'] ?? "Açıklama Yok"),
                 subtitle: const Text("Yakın zamanda"),
               ),
             );
@@ -227,7 +246,6 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
     );
   }
 
-  // EKSİK OLAN FONKSİYON BU:
   Widget _buildAboutTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -247,7 +265,11 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> with SingleTickerPr
             title: const Text("Kulüp Başkanı"),
             subtitle: Text(widget.clubData['presidentUID'] ?? "Atanmamış"),
           ),
+
+          const SizedBox(height: 20),
           const Divider(),
+          const SizedBox(height: 20),
+
           Center(
             child: TextButton.icon(
               onPressed: () {},
