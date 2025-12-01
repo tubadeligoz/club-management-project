@@ -1,7 +1,7 @@
 name: club_management_project
 description: "A Flutter project for managing clubs."
 
-publish_to: 'none' # Private project, not published to pub.dev
+publish_to: 'none'
 
 version: 1.0.0+1
 
