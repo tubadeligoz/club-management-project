@@ -100,6 +100,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Eğer kullanıcı oturumu yoksa, hata vereceği yerde güvenli bir görünüm göster
+    if (currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text("Sosyal Transkript"),
+          centerTitle: true,
+          automaticallyImplyLeading: false,
+        ),
+        body: const Center(child: Text("Lütfen giriş yapın.")),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Sosyal Transkript"),
@@ -130,13 +142,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // -----------------------------------------
         ],
       ),
-      body: StreamBuilder<DocumentSnapshot>(
+      body: StreamBuilder<DocumentSnapshot?>(
         stream: FirebaseFirestore.instance.collection('users').doc(currentUser!.uid).snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          
-          var userData = snapshot.data!.data() as Map<String, dynamic>;
-          String photoUrl = userData['photoUrl'] ?? "";
+          if (snapshot.hasError) {
+            return Center(child: Text("Hata: ${snapshot.error}"));
+          }
+
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docSnapshot = snapshot.data;
+          if (docSnapshot == null || !docSnapshot.exists) {
+            return const Center(child: Text("Kullanıcı bulunamadı"));
+          }
+
+          final userData = (docSnapshot.data() as Map<String, dynamic>?) ?? {};
+          final String name = (userData['name'] ?? '').toString();
+          final String photoUrl = (userData['photoUrl'] ?? '').toString();
+
+          // Güvenli avatar sağlayıcısı (önce seçilen local, sonra network)
+          ImageProvider? avatarImage;
+          if (_selectedImage != null) {
+            avatarImage = FileImage(_selectedImage!);
+          } else if (photoUrl.isNotEmpty) {
+            avatarImage = NetworkImage(photoUrl);
+          }
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -150,11 +182,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       CircleAvatar(
                         radius: 60,
                         backgroundColor: Colors.indigo.shade100,
-                        backgroundImage: _selectedImage != null 
-                            ? FileImage(_selectedImage!) 
-                            : (photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null) as ImageProvider?,
-                        child: (_selectedImage == null && photoUrl.isEmpty) 
-                            ? Text(userData['name'][0], style: const TextStyle(fontSize: 40)) 
+                        backgroundImage: avatarImage,
+                        child: avatarImage == null
+                            ? Text(name.isNotEmpty ? name[0] : "U", style: const TextStyle(fontSize: 40))
                             : null,
                       ),
                       if (_isEditing)
@@ -169,7 +199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 
                 const SizedBox(height: 15),
                 
-                Text(userData['name'], style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                Text(name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
                 Chip(
                   label: Text(widget.userRole.toUpperCase()),
@@ -211,7 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 10, spreadRadius: 2)],
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)],
         border: Border.all(color: Colors.grey.shade200)
       ),
       child: Column(

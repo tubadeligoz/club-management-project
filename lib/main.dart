@@ -38,7 +38,7 @@ class MyApp extends StatelessWidget {
         ),
 
         // YAZI TİPİ
-        textTheme: GoogleFonts.poppinsTextTheme(),
+        textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme),
 
         // APP BAR
         appBarTheme: const AppBarTheme(
