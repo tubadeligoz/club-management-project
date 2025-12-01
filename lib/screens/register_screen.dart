@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -11,227 +12,411 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _name = TextEditingController();
-  final _email = TextEditingController();
-  final _password = TextEditingController();
-  
+  final _adController = TextEditingController();
+  final _soyadController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _isLoading = false;
+  String? _errorMessage;
+  String? _successMessage;
+  final AuthService _authService = AuthService();
+
+  // --- EKLENDİ: İlgi alanları değişkenleri 
   final List<String> _allInterests = [
-    "Yazılım", "Siber Güvenlik", "Yapay Zeka", "Müzik", "Tiyatro", "Spor", "Fotoğraf"
+    "Teknoloji",
+    "Bilim",
+    "Tarih",
+    "Sanat",
+    "Yabancı Dil",
+    "Spor",
+    "Tasarım",
+    "Endüstri",
+    "Girişimcilik",
+    "Gastronomi",
+    "İletişim",
+    "İşletme"
   ];
+  final List<String> _selectedInterests = [];
 
-  final List<String> _selected = [];
-  bool _loading = false;
 
-  bool _isEmailValid(String email) =>
-      email.endsWith('@dogus.edu.tr') || email.endsWith('@st.dogus.edu.tr');
+  // Ana renk paletini tanımlayalım
+  static const Color _primaryColor = Color.fromARGB(255, 241, 21, 6); // Kırmızı
+  static const Color _secondaryColor = Color(0xFFEEEEEE); // Açık Gri (Arka plan)
 
-  String? _validatePassword(String password) {
-    if (password.length < 8) return "En az 8 karakter";
-    if (!password.contains(RegExp(r'[A-Z]'))) return "Büyük harf gerekli";
-    if (!password.contains(RegExp(r'[0-9]'))) return "Rakam gerekli";
-    return null;
+  @override
+  void dispose() {
+    _adController.dispose();
+    _soyadController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 
   Future<void> _register() async {
-    if (!_isEmailValid(_email.text.trim())) {
-      _showSnack("Sadece okul maili!");
+    // Odaklanmayı kaldır
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    final ad = _adController.text.trim();
+    final soyad = _soyadController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    // Validasyon
+    if (ad.isEmpty || soyad.isEmpty || email.isEmpty || password.isEmpty) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Tüm alanlar doldurulmalıdır.';
+      });
       return;
     }
 
-    final pError = _validatePassword(_password.text.trim());
-    if (pError != null) {
-      _showSnack(pError);
+    if (password != confirmPassword) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Şifreler eşleşmiyor.';
+      });
       return;
     }
 
-    setState(() => _loading = true);
+    if (password.length < 6) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Şifre en az 6 karakter olmalıdır.';
+      });
+      return;
+    }
 
-    try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _email.text.trim(),
-        password: _password.text.trim(),
-      );
+    // Kayıt işlemi
+    final result = await _authService.register(email, password, ad, soyad);
 
-      await cred.user!.sendEmailVerification();
+    if (!mounted) return;
 
-      await FirebaseFirestore.instance.collection("users").doc(cred.user!.uid).set({
-        'name': _name.text.trim(),
-        'email': _email.text.trim(),
-        'interests': _selected,
-        'createdAt': FieldValue.serverTimestamp(),
-        'isVerified': false,
-        'role': 'ogrenci',
+    if (result == null) {
+      // Başarılı kayıt
+      setState(() {
+        _successMessage = 'Kayıt başarılı! Lütfen e-postanızı doğrulayın.';
       });
 
+      // Seçili ilgi alanları varsa Firestore'da kullanıcı dokümanına kaydet (merge: true)
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({'interests': _selectedInterests}, SetOptions(merge: true));
+        }
+      } catch (e) {
+        // Sessizce loglayalım
+        // ignore: avoid_print
+        print('Interests save error: $e');
+      }
+
+      // Alanları temizleme
+      _adController.clear();
+      _soyadController.clear();
+      _emailController.clear();
+      _passwordController.clear();
+      _confirmPasswordController.clear();
+      _selectedInterests.clear();
+
+      // 2 saniye sonra login ekranına yönlendir
+      await Future.delayed(const Duration(seconds: 2));
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (c) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text("Doğrulama Maili Gönderildi"),
-            content: const Text("Mailinizi kontrol edin"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                ),
-                child: const Text("Giriş Yap"),
-              ),
-            ],
-          ),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
       }
-    } catch (e) {
-      _showSnack("Hata: $e");
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    } else {
+      // Hata mesajı
+      setState(() {
+        _errorMessage = result;
+      });
+    }
+
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+  // Özel bir Giriş Alanı Widget'ı (TextField) oluşturalım
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    required bool enabled,
+    bool obscureText = false,
+    TextInputType keyboardType = TextInputType.text,
+    required IconData icon,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 8,
+            offset: const Offset(0, 4), // Hafif bir alt gölge
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: obscureText,
+        enabled: enabled,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          hintText: hintText,
+          prefixIcon: Icon(icon, color: const Color.fromARGB(255, 205, 23, 10).withOpacity(0.7)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none, // Kenarlığı kaldırarak daha yumuşak bir görünüm
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _secondaryColor,
       appBar: AppBar(
-        title: const Text("Kayıt Ol"),
+        // Başlık kaldırıldı, arka plan şeffaf yapıldı
+        title: null,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        shadowColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white), // Geri butonu rengi
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: ListView(
-          children: [
-            const SizedBox(height: 25),
-
-            Text(
-              "Hesap Oluştur",
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Okul maili ile kayıt olup topluluğa katıl!",
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 30),
-
-            // NAME
-            _ModernField(
-              controller: _name,
-              label: "Ad Soyad",
-              icon: Icons.person,
-            ),
-            const SizedBox(height: 16),
-
-            // EMAIL
-            _ModernField(
-              controller: _email,
-              label: "Okul Maili",
-              icon: Icons.email,
-            ),
-            const SizedBox(height: 16),
-
-            // PASSWORD
-            _ModernField(
-              controller: _password,
-              label: "Şifre",
-              icon: Icons.lock,
-              obscure: true,
-            ),
-            const SizedBox(height: 20),
-
-            Text(
-              "İlgi Alanların",
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 10),
-
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _allInterests.map((i) {
-                final selected = _selected.contains(i);
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      selected ? _selected.remove(i) : _selected.add(i);
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: selected ? Colors.blue.shade100 : Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(16),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(30, 8, 30, 30), // Üst boşluğu küçülttüm
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Kayıt İkonu Alanı (Daha şık bir gölge)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12), // Alt boşluğu küçülttüm
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color.fromARGB(255, 147, 20, 11).withOpacity(0.3),
+                      blurRadius: 20,
+                      spreadRadius: 1,
                     ),
-                    child: Text(
-                      i,
-                      style: TextStyle(
-                        color: selected ? Colors.blue.shade900 : Colors.grey.shade800,
-                        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 30),
-
-            // BUTTON
-            SizedBox(
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _register,
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ],
                 ),
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : const Text("Kayıt Ol", style: TextStyle(fontSize: 18)),
+                child: const Icon(
+                  Icons.person_add_alt_1, // İkonu biraz değiştirdim
+                  size: 30, // Logo küçültüldü
+                  color: Color.fromARGB(255, 16, 14, 14),
+                ),
               ),
-            ),
 
-            const SizedBox(height: 40),
-          ],
+              // Üst başlık kaldırıldı; boşluk daha da küçültüldü
+              const SizedBox(height: 8),
+
+              // Giriş Alanları
+              _buildTextField(
+                controller: _adController,
+                hintText: 'Ad',
+                enabled: !_isLoading,
+                icon: Icons.person_outline,
+              ),
+              const SizedBox(height: 15),
+
+              _buildTextField(
+                controller: _soyadController,
+                hintText: 'Soyad',
+                enabled: !_isLoading,
+                icon: Icons.person_outline,
+              ),
+              const SizedBox(height: 15),
+
+              _buildTextField(
+                controller: _emailController,
+                hintText: 'E-posta',
+                enabled: !_isLoading,
+                keyboardType: TextInputType.emailAddress,
+                icon: Icons.email_outlined,
+              ),
+              const SizedBox(height: 15),
+
+              _buildTextField(
+                controller: _passwordController,
+                hintText: 'Şifre',
+                enabled: !_isLoading,
+                obscureText: true,
+                icon: Icons.lock_outline,
+              ),
+              const SizedBox(height: 15),
+
+              _buildTextField(
+                controller: _confirmPasswordController,
+                hintText: 'Şifre Tekrar',
+                enabled: !_isLoading,
+                obscureText: true,
+                icon: Icons.lock_reset,
+              ),
+
+              const SizedBox(height: 15),
+
+              // EKLENDİ: İlgi Alanları Seçimi UI
+              const Text(
+                'İlgi Alanları',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _allInterests.map((interest) {
+                  final isSelected = _selectedInterests.contains(interest);
+                  return FilterChip(
+                    label: Text(interest),
+                    selected: isSelected,
+                    onSelected: _isLoading
+                        ? null
+                        : (selected) {
+                            setState(() {
+                              if (selected) {
+                                if (!_selectedInterests.contains(interest)) {
+                                  _selectedInterests.add(interest);
+                                }
+                              } else {
+                                _selectedInterests.remove(interest);
+                              }
+                            });
+                          },
+                    selectedColor: _primaryColor.withOpacity(0.12),
+                    checkmarkColor: _primaryColor,
+                    backgroundColor: Colors.white,
+                    labelStyle: TextStyle(
+                      color: isSelected ? _primaryColor : Colors.black87,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 25),
+              // -----------------------------------------------------------
+
+              // Hata/Başarı Mesajları
+              if (_errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 15),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    border: Border.all(color: _primaryColor),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+              if (_successMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 15),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    border: Border.all(color: Colors.green),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _successMessage!,
+                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+              // Kayıt Ol Butonu
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color.fromARGB(255, 189, 27, 15).withOpacity(0.4),
+                      spreadRadius: 1,
+                      blurRadius: 10,
+                      offset: const Offset(0, 5), // Butona daha belirgin bir gölge
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _register,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 55),
+                    backgroundColor: const Color.fromARGB(255, 185, 27, 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0, // Container'ın gölgesini kullanıyoruz
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : const Text(
+                          'Kayıt Ol',
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              // Giriş Yap Butonu
+              TextButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                child: Text(
+                  'Zaten hesabınız var mı? Giriş Yap',
+                  style: TextStyle(color: const Color.fromARGB(255, 133, 14, 5).withOpacity(0.8), fontWeight: FontWeight.w600),
+                ),
+              )
+            ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _ModernField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final IconData icon;
-  final bool obscure;
-
-  const _ModernField({
-    required this.controller,
-    required this.label,
-    required this.icon,
-    this.obscure = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      obscureText: obscure,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        filled: true,
-        fillColor: Colors.grey.shade100,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
